@@ -5,7 +5,7 @@ from data_handler import (
     get_next_id,
     update_sheet_with_data
 )
-from llm_analyze_switch import get_preferred_model_and_config, analyze_clause, extract_key_clauses
+from llm_analyzer import get_preferred_model_and_config, analyze_clause, extract_key_clauses
 import time
 
 def main():
