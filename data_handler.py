@@ -9,7 +9,7 @@ from langchain_experimental.text_splitter import SemanticChunker
 def connect_sheet():
     load_dotenv()
     creds_path = os.getenv("GOOGLE_SHEET_API_CRED")
-    sheet_id = os.getenv("GOOGLE_SHEET_ID_2")
+    sheet_id = os.getenv("GOOGLE_SHEET_ID")
     
     if not creds_path or not os.path.exists(creds_path):
         raise FileNotFoundError(f"Service account JSON not found at {creds_path}")
