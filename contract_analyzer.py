@@ -5,7 +5,8 @@ from data_handler import (
     get_next_id,
     update_sheet_with_data
 )
-from llm_analyzer import get_llm_client, analyze_clause, extract_key_clauses
+from llm_analyze_switch import get_preferred_model_and_config, analyze_clause, extract_key_clauses
+import time
 
 def main():
     contract_file_path = input("Enter path to contract file (.pdf or .docx): ")
@@ -14,7 +15,7 @@ def main():
         wks = connect_sheet()
         if not wks:
             return
-        
+
         expected_header = ["Clause ID", "Contract Clause", "Regulation", "Key Clauses (AI)", "Risk Level (AI)", "Risk % (AI)", "AI Summary"]
         current_header = wks.get_row(1, include_tailing_empty=False)
         if current_header != expected_header:
@@ -26,14 +27,29 @@ def main():
         clauses = semantic_chunking(contract_text)
         print(f"Extracted {len(clauses)} clauses from the document.")
 
-        llm_client = get_llm_client()
         rows_to_append = []
         starting_id = get_next_id(wks)
         
+        # Get the initial model configuration before the loop starts
+        current_config = get_preferred_model_and_config()
+
         for i, clause in enumerate(clauses):
-            regulation, summary, risk_level, risk_percent = analyze_clause(llm_client, clause)
-            key_clauses = extract_key_clauses(llm_client, clause)
-            
+            try:
+                # The functions now take the full config dictionary
+                regulation, summary, risk_level, risk_percent = analyze_clause(current_config, clause)
+                key_clauses = extract_key_clauses(current_config, clause)
+                time.sleep(1) # Add a small delay to respect API rate limits
+            except Exception as e:
+                print(f"⚠️ Error analyzing clause with current model. Attempting to switch to next available model.")
+                print(f"Error: {e}")
+                
+                # If an error occurs, get the next model configuration
+                current_config = get_preferred_model_and_config()
+                
+                # Retry the failed clause with the new model
+                regulation, summary, risk_level, risk_percent = analyze_clause(current_config, clause)
+                key_clauses = extract_key_clauses(current_config, clause)
+
             clause_id = starting_id + i
             
             rows_to_append.append([
