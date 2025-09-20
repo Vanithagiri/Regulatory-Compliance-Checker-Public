@@ -3,6 +3,7 @@ import requests
 from groq import Groq
 from groq.types.chat.chat_completion import ChatCompletion
 from config import MODEL_CONFIG, MODEL_PREFERENCE_ORDER
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def get_preferred_model_and_config():
     for model_name in MODEL_PREFERENCE_ORDER:
@@ -15,11 +16,9 @@ def get_preferred_model_and_config():
                     if not api_key:
                         print(f"❌ GROQ_API_KEY not found. Skipping {model_name}.")
                         continue
-                    # Test the key by making a simple list models call
                     test_client = Groq(api_key=api_key)
-                    # This line will raise an APIError if the key is invalid
                     test_client.models.list()
-                    config["client"] = test_client # Set the client if key is valid
+                    config["client"] = test_client
 
                 elif config["provider"] == "github":
                     pat = os.getenv("GITHUB_PAT")
@@ -30,7 +29,6 @@ def get_preferred_model_and_config():
                 print(f"✅ Using model: {config['model_id']} from {config['provider']}")
                 return config
             except Exception as e:
-                # This will catch the Invalid API Key error and move to the next model
                 print(f"❌ Model {config['model_id']} from {config['provider']} failed. Trying next model... Error: {e}")
                 continue
     raise Exception("All configured models failed to connect.")
@@ -50,10 +48,10 @@ def _call_github_models_api(config, prompt, max_tokens):
 
     response = requests.post(config["api_url"], headers=headers, json=data)
     response.raise_for_status()
-
     result = response.json()
     return result["choices"][0]["message"]["content"].strip()
 
+# --- Parallelized Clause Analysis ---
 def analyze_clause(config, clause):
     prompt = (
         f"Analyze this contract clause to identify the most relevant legal regulation (e'g., GDPR, HIPAA, or None) and assess its compliance. "
@@ -93,7 +91,7 @@ def analyze_clause(config, clause):
 
     return regulation, summary, risk_level, risk_percent
 
-def extract_key_clauses(config, clause):
+def extract_key_clauses(config, clause): 
     prompt = (
         f"Read the following contract clause. "
         f"Extract the most important phrases that summarize its core obligation or purpose. "
@@ -115,3 +113,48 @@ def extract_key_clauses(config, clause):
         raise ValueError(f"Unknown provider: {config['provider']}")
 
     return result
+
+# --- Parallel Processing Wrappers ---
+def analyze_clauses_parallel(config, clauses, max_workers=5):
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(analyze_clause, config, c): c for c in clauses}
+        for future in as_completed(futures):
+            try:
+                results.append(future.result())
+            except Exception as e:
+                print(f"Error analyzing clause: {e}")
+    return results
+
+def extract_clauses_parallel(config, clauses, max_workers=5):
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(extract_key_clauses, config, c): c for c in clauses}
+        for future in as_completed(futures):
+            try:
+                results.append(future.result())
+            except Exception as e:
+                print(f"Error extracting key clause: {e}")
+    return results
+def modify_clause(config, clause, risk_level):
+    if risk_level.lower() == "low":
+        return clause  # no modification needed
+
+    prompt = (
+        f"The following contract clause has been assessed as {risk_level} risk. "
+        f"Rewrite this clause to make it compliant with relevant regulations (e.g., GDPR, HIPAA), "
+        f"while keeping the legal meaning intact. Return only the rewritten clause text.\n\n"
+        f"Original Clause:\n{clause}"
+    )
+
+    if config["provider"] == "groq":
+        chat = config["client"].chat.completions.create(
+            model=config["model_id"],
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+        )
+        return chat.choices[0].message.content.strip()
+    elif config["provider"] == "github":
+        return _call_github_models_api(config, prompt, max_tokens=300)
+    else:
+        raise ValueError(f"Unknown provider: {config['provider']}")
