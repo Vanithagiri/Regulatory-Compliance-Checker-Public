@@ -1,5 +1,4 @@
 # config.py
-
 import os
 from groq import Groq
 from dotenv import load_dotenv
@@ -12,6 +11,16 @@ MODEL_CONFIG = {
         "model_id": "llama-3.3-70b-versatile",
         "client": Groq(api_key=os.getenv("GROQ_API_KEY"))
     },
+    "groq_fallback_1": {
+        "provider": "groq",
+        "model_id": "llama3-70b-8192", 
+        "client": Groq(api_key=os.getenv("GROQ_API_KEY"))
+    },
+    "groq_fallback_2": {
+        "provider": "groq",
+        "model_id": "gemma-7b-it", 
+        "client": Groq(api_key=os.getenv("GROQ_API_KEY"))
+    },
     "github_fallback": {
         "provider": "github",
         "model_id": "openai/gpt-4o",
@@ -19,4 +28,10 @@ MODEL_CONFIG = {
     }
 }
 
-MODEL_PREFERENCE_ORDER = ["primary", "github_fallback"]
+
+MODEL_PREFERENCE_ORDER = [
+    "primary", 
+    "groq_fallback_1", 
+    "groq_fallback_2", 
+    "github_fallback"
+]
