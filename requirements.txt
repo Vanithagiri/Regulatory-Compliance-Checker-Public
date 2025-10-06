@@ -1,0 +1,26 @@
+# Core packages
+pandas
+requests
+python-dotenv
+
+# PDF / DOCX processing
+pypdf
+python-docx
+pygsheets
+reportlab
+
+# LLM / embeddings / LangChain
+langchain
+langchain-huggingface
+langchain-experimental
+sentence-transformers
+transformers
+torch
+accelerate
+
+# Groq integration
+groq
+
+# Web / Dashboard
+streamlit
+plotly
